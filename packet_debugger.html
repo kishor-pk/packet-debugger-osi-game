@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Packet Debugger - OSI Layers Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0;}
+        :root{
+            --bg-dark:#0a0e27;--bg-surface:#111a37;--bg-card:#1a2650;--bg-accent:#0f1929;
+            --neon-cyan:#00d9ff;--neon-purple:#b537f2;--neon-green:#00ff88;--neon-amber:#ffb800;--neon-red:#ff3366;--neon-pink:#ff1493;
+            --text-primary:#e8eef7;--text-muted:#8892b0;--text-dim:#5a6779;
+            --border-color:#1e3a5f;--border-light:#2d4a7a;
+        }
+
+        html,body{height:100%;width:100%;}
+        body{
+            font-family:'Inter',sans-serif;
+            background:var(--bg-dark);
+            color:var(--text-primary);
+            overflow-x:hidden;
+        }
+
+        .screen{display:none;padding:16px;min-height:100vh;flex-direction:column;gap:12px;animation:fadeIn 0.3s ease-out;}
+        .screen.active{display:flex;}
+
+        @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+        @keyframes slideInUp{from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+        @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
+        @keyframes confetti{0%{transform:translateY(-400px) rotateZ(0deg);opacity:1;}100%{transform:translateY(800px) rotateZ(720deg);opacity:0;}}
+        @keyframes successPulse{0%{transform:scale(1);}50%{transform:scale(1.08);}100%{transform:scale(1);}}
+
+        .title-screen{align-items:center;justify-content:center;text-align:center;gap:16px;padding:20px 16px;}
+        .logo{font-size:48px;margin-bottom:8px;}
+        .title{font-size:28px;font-weight:700;color:var(--neon-cyan);margin-bottom:4px;}
+        .subtitle{font-size:13px;color:var(--text-muted);margin-bottom:20px;line-height:1.6;}
+        .feature-box{background:rgba(0,217,255,0.08);border:0.5px solid var(--neon-cyan);border-radius:10px;padding:10px;margin-bottom:8px;font-size:11px;color:var(--text-muted);line-height:1.5;}
+        .btn-start{background:linear-gradient(135deg,var(--neon-cyan),var(--neon-pink));color:#0a0e27;border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:700;cursor:pointer;transition:all 0.3s;width:100%;margin-top:12px;}
+        .btn-start:active{transform:scale(0.95);}
+
+        .step-title{font-size:14px;font-weight:700;color:var(--neon-cyan);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.05em;}
+        .progress-bar{height:4px;background:var(--border-color);border-radius:2px;overflow:hidden;margin-bottom:16px;}
+        .progress-fill{height:100%;background:linear-gradient(90deg,var(--neon-cyan),var(--neon-purple));transition:width 0.3s;}
+
+        .layers-list{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px;}
+        .layer-btn{
+            background:var(--bg-card);
+            border:1.5px solid var(--border-light);
+            border-radius:10px;
+            padding:14px;
+            text-align:left;
+            cursor:pointer;
+            transition:all 0.2s;
+            display:flex;
+            align-items:center;
+            gap:12px;
+            font-size:13px;
+            min-height:48px;
+            animation:slideInUp 0.3s ease-out;
+        }
+        .layer-btn:active{transform:scale(0.98);}
+        .layer-btn.selected{
+            background:linear-gradient(135deg,rgba(0,255,136,0.15),rgba(0,255,136,0.05));
+            border-color:var(--neon-green);
+            box-shadow:0 0 15px rgba(0,255,136,0.2);
+        }
+        .layer-icon{font-size:24px;flex-shrink:0;}
+        .layer-text{flex:1;}
+        .layer-name{font-size:13px;font-weight:600;color:var(--text-primary);}
+
+        .stack-display{background:var(--bg-card);border:0.5px solid var(--border-color);border-radius:10px;padding:12px;margin-bottom:12px;}
+        .stack-title{font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;margin-bottom:8px;}
+        .stack-items{display:flex;flex-direction:column;gap:6px;}
+        .stack-item{
+            background:linear-gradient(90deg,rgba(0,255,136,0.15),rgba(0,255,136,0.05));
+            border-left:3px solid var(--neon-green);
+            border-radius:6px;
+            padding:10px 12px;
+            font-size:12px;
+            color:var(--neon-green);
+            font-weight:600;
+            display:flex;
+            align-items:center;
+            gap:8px;
+        }
+        .stack-item-icon{font-size:18px;}
+        .stack-item-remove{cursor:pointer;margin-left:auto;font-size:14px;color:var(--neon-red);opacity:0.6;}
+        .stack-item-remove:active{opacity:1;transform:scale(1.2);}
+        .stack-empty{
+            background:rgba(255,51,102,0.08);
+            border:0.5px dashed var(--neon-red);
+            border-radius:8px;
+            padding:12px;
+            text-align:center;
+            font-size:12px;
+            color:var(--text-muted);
+        }
+        .stack-feedback{font-size:12px;margin-top:8px;text-align:center;height:16px;}
+        .stack-feedback.error{color:var(--neon-red);}
+        .stack-feedback.success{color:var(--neon-green);}
+
+        .packet-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px;}
+        .packet-btn{
+            background:var(--bg-card);
+            border:1.5px solid var(--border-light);
+            border-radius:10px;
+            padding:14px 10px;
+            text-align:center;
+            cursor:pointer;
+            transition:all 0.2s;
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            gap:6px;
+            min-height:100px;
+            justify-content:center;
+            font-size:12px;
+        }
+        .packet-btn:active{transform:scale(0.95);}
+        .packet-btn.selected{
+            background:linear-gradient(135deg,rgba(0,255,136,0.15),rgba(0,255,136,0.05));
+            border-color:var(--neon-green);
+            box-shadow:0 0 15px rgba(0,255,136,0.2);
+        }
+        .packet-icon{font-size:28px;}
+        .packet-name{font-weight:600;color:var(--text-primary);}
+        .packet-desc{font-size:10px;color:var(--text-muted);}
+
+        .progress-tracker{background:var(--bg-card);border:0.5px solid var(--border-color);border-radius:10px;padding:12px;margin-bottom:12px;}
+        .progress-title{font-size:11px;font-weight:700;color:var(--text-dim);text-transform:uppercase;margin-bottom:10px;}
+        .progress-layers{display:flex;flex-direction:column;gap:6px;}
+        .progress-item{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            padding:8px 10px;
+            border-radius:8px;
+            font-size:11px;
+            background:rgba(255,51,102,0.08);
+            border:0.5px solid var(--neon-red);
+        }
+        .progress-item.fixed{background:rgba(0,255,136,0.08);border-color:var(--neon-green);}
+        .progress-dot{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
+        .progress-item.pending .progress-dot{background:var(--neon-red);color:#0a0e27;animation:pulse 1s infinite;}
+        .progress-item.fixed .progress-dot{background:var(--neon-green);color:#0a0e27;}
+        .progress-text{flex:1;color:var(--text-primary);}
+
+        .error-banner{
+            background:linear-gradient(90deg,rgba(255,51,102,0.15),rgba(255,51,102,0.05));
+            border:1px solid var(--neon-red);
+            border-radius:10px;
+            padding:12px;
+            margin-bottom:12px;
+            animation:slideInUp 0.3s ease-out;
+        }
+        .error-title{font-size:13px;font-weight:700;color:var(--neon-red);margin-bottom:6px;}
+        .error-msg{font-size:12px;color:var(--text-primary);line-height:1.5;}
+
+        .logs-box{
+            background:var(--bg-card);
+            border:0.5px solid var(--border-color);
+            border-radius:10px;
+            padding:12px;
+            margin-bottom:12px;
+            max-height:200px;
+            overflow-y:auto;
+            font-family:'JetBrains Mono',monospace;
+            font-size:10px;
+            line-height:1.6;
+        }
+        .log-line{color:var(--text-dim);margin-bottom:4px;}
+        .log-line.error{color:var(--neon-red);font-weight:600;}
+        .log-line.warn{color:var(--neon-amber);}
+
+        .fix-options{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
+        .fix-btn{
+            background:var(--bg-card);
+            border:1px solid var(--neon-purple);
+            color:var(--neon-purple);
+            border-radius:10px;
+            padding:12px;
+            font-size:12px;
+            cursor:pointer;
+            transition:all 0.2s;
+            text-align:left;
+            font-weight:500;
+            min-height:48px;
+            display:flex;
+            align-items:center;
+            animation:slideInUp 0.3s ease-out;
+        }
+                .fix-btn.tried{opacity:0.4;cursor:default;}
+        .fix-feedback{font-size:11px;color:var(--neon-red);text-align:center;margin-top:6px;}
+
+        .btn-primary{
+            background:linear-gradient(135deg,var(--neon-cyan),var(--neon-pink));
+            color:#0a0e27;
+            border:none;
+            border-radius:10px;
+            padding:14px;
+            font-size:14px;
+            font-weight:700;
+            cursor:pointer;
+            width:100%;
+            transition:all 0.3s;
+            min-height:48px;
+            margin-bottom:8px;
+        }
+        .btn-primary:active{transform:scale(0.95);}
+        .btn-primary:disabled{opacity:0.4;cursor:default;}
+
+        .results-container{
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            gap:16px;
+            text-align:center;
+            padding:20px 0;
+        }
+        .result-icon{font-size:64px;animation:successPulse 0.8s ease-out;}
+        .result-title{font-size:24px;font-weight:700;color:var(--neon-green);}
+        .result-msg{font-size:13px;color:var(--text-muted);line-height:1.6;}
+        .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;margin:12px 0;}
+        .stat-card{background:var(--bg-card);border:0.5px solid var(--border-color);border-radius:10px;padding:12px;text-align:center;}
+        .stat-val{font-size:20px;font-weight:700;color:var(--neon-cyan);}
+        .stat-label{font-size:10px;color:var(--text-muted);margin-top:4px;}
+
+        .confetti{
+            position:fixed;
+            width:10px;
+            height:10px;
+            pointer-events:none;
+            z-index:9999;
+        }
+        .confetti.burst{animation:confetti 5s ease-out forwards;}
+
+        .text-sm{font-size:11px;color:var(--text-muted);}
+    </style>
+</head>
+<body>
+    <div id="s-title" class="screen active title-screen">
+        <div class="logo">📦</div>
+        <div style="width:100%;">
+            <div class="title">Packet Debugger</div>
+            <div class="subtitle">Fix all 7 OSI layers and deliver your packet</div>
+            <div class="feature-box">🧩 Build the stack</div>
+            <div class="feature-box">📨 Send packets</div>
+            <div class="feature-box">🐛 Debug all layers</div>
+            <div class="feature-box">✨ Restore network</div>
+            <button class="btn-start" onclick="initGame()">Start →</button>
+        </div>
+    </div>
+
+    <div id="s-stack" class="screen">
+        <div style="margin-bottom:16px;">
+            <div class="step-title">Step 1: Arrange OSI Layers</div>
+            <div class="progress-bar"><div class="progress-fill" style="width:33%;"></div></div>
+            <div class="text-sm">Tap layers in order: Application → Physical</div>
+        </div>
+        <div class="layers-list" id="layers-list"></div>
+        <div class="stack-display">
+            <div class="stack-title">Your Stack</div>
+            <div class="stack-items" id="stack-items"></div>
+            <div class="stack-empty" id="stack-empty" style="display:none;">No layers selected yet</div>
+            <div class="stack-feedback" id="stack-msg"></div>
+        </div>
+        <button class="btn-primary" id="next-btn" onclick="nextStep()" disabled>Continue →</button>
+    </div>
+
+    <div id="s-packet" class="screen">
+        <div style="margin-bottom:16px;">
+            <div class="step-title">Step 2: Choose Packet Type</div>
+            <div class="progress-bar"><div class="progress-fill" style="width:66%;"></div></div>
+        </div>
+        <div class="packet-grid" id="packet-grid"></div>
+        <button class="btn-primary" id="send-btn" onclick="sendPacket()" disabled>Send Packet →</button>
+    </div>
+
+    <div id="s-debug" class="screen">
+        <div style="margin-bottom:12px;">
+            <div class="step-title" id="layer-title">Debugging Layer 7</div>
+            <div class="progress-bar"><div class="progress-fill" style="width:100%;"></div></div>
+        </div>
+        <div class="progress-tracker" id="progress-tracker"></div>
+        <div id="debug-content"></div>
+    </div>
+
+    <div id="s-success" class="screen">
+        <div class="results-container">
+            <div class="result-icon">✨</div>
+            <div class="result-title">Network Restored!</div>
+            <div class="result-msg">You debugged all 7 OSI layers and delivered the packet successfully.</div>
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-val">7</div><div class="stat-label">Layers Fixed</div></div>
+                <div class="stat-card"><div class="stat-val">✓</div><div class="stat-label">Success</div></div>
+            </div>
+            <button class="btn-primary" onclick="newRound()">Play Again →</button>
+        </div>
+    </div>
+
+    <script>
+        const LAYERS=[
+            {name:'Application',icon:'🖥️'},
+            {name:'Presentation',icon:'🔐'},
+            {name:'Session',icon:'📡'},
+            {name:'Transport',icon:'✂️'},
+            {name:'Network',icon:'🗺️'},
+            {name:'Data Link',icon:'🔗'},
+            {name:'Physical',icon:'⚡'},
+        ];
+
+        const PACKETS=[
+            {name:'HTTP',icon:'🌐'},
+            {name:'DNS',icon:'🔍'},
+            {name:'FTP',icon:'📁'},
+            {name:'SMTP',icon:'📧'},
+            {name:'HTTPS',icon:'🔒'},
+        ];
+
+        const BUGS_BY_LAYER={
+            7:[
+                {name:'Port Mismatch',issue:'Port 80 closed',log:'[ERROR] Connection timeout\n[WARN] Wrong port configured\n[DEBUG] Expected 80, got 8080'},
+                {name:'Protocol Error',issue:'HTTP version incompatible',log:'[ERROR] Unsupported HTTP version\n[WARN] Handshake failed\n[DEBUG] v0.9 vs v2.0 mismatch'},
+                {name:'DNS Failed',issue:'Domain not resolving',log:'[ERROR] NXDOMAIN\n[WARN] Resolver timeout\n[DEBUG] example.com not found'},
+            ],
+            6:[
+                {name:'Encryption Failed',issue:'TLS handshake failed',log:'[ERROR] TLS_ALERT\n[WARN] Cipher negotiation failed\n[DEBUG] No common cipher'},
+                {name:'Compression Error',issue:'Decompression failed',log:'[ERROR] gzip error\n[WARN] Invalid data\n[DEBUG] CRC mismatch'},
+                {name:'Encoding Issue',issue:'UTF-8 conversion failed',log:'[ERROR] Byte sequence invalid\n[WARN] Encoding mismatch\n[DEBUG] Expected ASCII'},
+            ],
+            5:[
+                {name:'Timeout',issue:'Session idle too long',log:'[ERROR] Session timeout\n[WARN] Connection closed\n[DEBUG] 900s no activity'},
+                {name:'Sync Failed',issue:'Sequence numbers wrong',log:'[ERROR] Invalid SID\n[WARN] Sync missing\n[DEBUG] SEQ mismatch'},
+                {name:'Half-Open',issue:'Connection stuck',log:'[ERROR] HALF_OPEN state\n[WARN] No keepalive\n[DEBUG] FIN not received'},
+            ],
+            4:[
+                {name:'Checksum Error',issue:'TCP checksum failed',log:'[ERROR] Checksum mismatch\n[WARN] Segment discarded\n[DEBUG] 0xAB12 vs 0xCD34'},
+                {name:'Port Unreachable',issue:'Service not running',log:'[ERROR] Port unreachable\n[WARN] ICMP error\n[DEBUG] MySQL not running'},
+                {name:'Datagram Loss',issue:'Buffer overflow',log:'[ERROR] UDP overflow\n[WARN] Packets dropped\n[DEBUG] RX queue full'},
+            ],
+            3:[
+                {name:'No Route',issue:'Destination unreachable',log:'[ERROR] No route\n[WARN] Gateway down\n[DEBUG] 192.168.1.1 unreachable'},
+                {name:'Fragment Error',issue:'MTU mismatch',log:'[ERROR] Reassembly timeout\n[WARN] Fragments lost\n[DEBUG] 2048 vs 1472 bytes'},
+                {name:'TTL Expired',issue:'Too many hops',log:'[ERROR] TTL exceeded\n[WARN] Packet dropped\n[DEBUG] 64 hops exceeded'},
+            ],
+            2:[
+                {name:'ARP Failed',issue:'MAC resolution failed',log:'[ERROR] ARP timeout\n[WARN] No reply\n[DEBUG] Who has 192.168.1.1?'},
+                {name:'Frame Error',issue:'Ethernet CRC failed',log:'[ERROR] CRC mismatch\n[WARN] Frame discarded\n[DEBUG] FCS error at offset 84'},
+                {name:'Loop Detected',issue:'Spanning tree loop',log:'[ERROR] Bridge loop\n[WARN] Port blocked\n[DEBUG] BPDU received'},
+            ],
+            1:[
+                {name:'Signal Weak',issue:'Physical signal degraded',log:'[ERROR] Signal -28dB\n[WARN] Below threshold\n[DEBUG] BER: 1e-6'},
+                {name:'Cable Down',issue:'No carrier detected',log:'[ERROR] No carrier\n[WARN] Link DOWN\n[DEBUG] Disconnected'},
+                {name:'Collision',issue:'Network collision',log:'[ERROR] Collision detected\n[WARN] Late collision\n[DEBUG] Half-duplex issue'},
+            ]
+        };
+
+        let game={stack:[],packet:null,bugs:{},fixed:[],layerIdx:0};
+
+        function initGame(){
+            game.stack=[];
+            game.packet=null;
+            game.bugs={};
+            game.fixed=[];
+            game.layerIdx=0;
+            renderLayers();
+            showScreen('s-stack');
+        }
+
+        function showScreen(id){
+            document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            window.scrollTo(0,0);
+        }
+
+        function renderLayers(){
+            const list=document.getElementById('layers-list');
+            list.innerHTML='';
+            const shuffled=[...LAYERS].sort(()=>Math.random()-0.5);
+            shuffled.forEach(l=>{
+                const btn=document.createElement('div');
+                btn.className='layer-btn';
+                btn.innerHTML=`<div class="layer-icon">${l.icon}</div><div class="layer-text"><div class="layer-name">${l.name}</div></div>`;
+                btn.onclick=()=>selectLayer(l.name);
+                btn.id='lay-'+l.name;
+                list.appendChild(btn);
+            });
+            renderStack();
+        }
+
+        function selectLayer(name){
+            if(!game.stack.includes(name)){
+                game.stack.push(name);
+                renderStack();
+                checkStack();
+            }
+        }
+
+        function renderStack(){
+            const items=document.getElementById('stack-items');
+            const empty=document.getElementById('stack-empty');
+            items.innerHTML='';
+            if(game.stack.length===0){
+                empty.style.display='block';
+                return;
+            }
+            empty.style.display='none';
+            game.stack.forEach((name,i)=>{
+                const layer=LAYERS.find(l=>l.name===name);
+                const item=document.createElement('div');
+                item.className='stack-item';
+                item.innerHTML=`<div class="stack-item-icon">${layer.icon}</div><span>${layer.name}</span><div class="stack-item-remove" onclick="removeLayer('${name}')">✕</div>`;
+                items.appendChild(item);
+            });
+        }
+
+        function removeLayer(name){
+            game.stack=game.stack.filter(l=>l!==name);
+            renderStack();
+            checkStack();
+        }
+
+        function checkStack(){
+            const correct=['Application','Presentation','Session','Transport','Network','Data Link','Physical'];
+            const isCorrect=JSON.stringify(game.stack)===JSON.stringify(correct);
+            const btn=document.getElementById('next-btn');
+            const msg=document.getElementById('stack-msg');
+            btn.disabled=!isCorrect;
+            if(game.stack.length===7&&!isCorrect){
+                msg.textContent='❌ Wrong order';
+                msg.classList.add('error');
+            }else if(isCorrect){
+                msg.textContent='✓ Perfect!';
+                msg.classList.remove('error');
+                msg.classList.add('success');
+            }else{
+                msg.textContent='';
+            }
+        }
+
+        function nextStep(){
+            showScreen('s-packet');
+            renderPackets();
+        }
+
+        function renderPackets(){
+            const grid=document.getElementById('packet-grid');
+            grid.innerHTML='';
+            const shuffled=[...PACKETS].sort(()=>Math.random()-0.5);
+            shuffled.forEach(p=>{
+                const btn=document.createElement('div');
+                btn.className='packet-btn';
+                btn.innerHTML=`<div class="packet-icon">${p.icon}</div><div class="packet-name">${p.name}</div>`;
+                btn.id='pkt-'+p.name;
+                btn.onclick=()=>selectPacket(p.name);
+                grid.appendChild(btn);
+            });
+        }
+
+        function selectPacket(name){
+            document.querySelectorAll('.packet-btn').forEach(b=>b.classList.remove('selected'));
+            document.getElementById('pkt-'+name).classList.add('selected');
+            game.packet=name;
+            document.getElementById('send-btn').disabled=false;
+        }
+
+        function sendPacket(){
+            for(let i=1;i<=7;i++){
+                const bugs=BUGS_BY_LAYER[i];
+                game.bugs[i]=bugs[Math.floor(Math.random()*bugs.length)];
+            }
+            game.layerIdx=0;
+            game.fixed=[];
+            showDebug();
+        }
+
+        function showDebug(){
+            showScreen('s-debug');
+            const layerNum=7-game.layerIdx;
+            document.getElementById('layer-title').textContent=`Debugging Layer ${layerNum}`;
+            renderProgress();
+            renderDebugContent();
+        }
+
+        function renderProgress(){
+            const tracker=document.getElementById('progress-tracker');
+            let html='<div class="progress-title">Layers Status</div><div class="progress-layers">';
+            for(let i=7;i>=1;i--){
+                const status=game.fixed.includes(i)?'fixed':'pending';
+                const fixed=game.fixed.includes(i);
+                html+=`<div class="progress-item ${status}">
+                    <div class="progress-dot">${fixed?'✓':i}</div>
+                    <div class="progress-text">L${i}</div>
+                </div>`;
+            }
+            html+='</div>';
+            tracker.innerHTML=html;
+        }
+
+        function renderDebugContent(){
+            const layerNum=7-game.layerIdx;
+            const bug=game.bugs[layerNum];
+            const content=document.getElementById('debug-content');
+            let html=`<div class="error-banner">
+                <div class="error-title">⚠️ Layer ${layerNum}: ${bug.name}</div>
+                <div class="error-msg">${bug.issue}</div>
+            </div>
+            <div class="logs-box">`;
+            const lines=bug.log.split('\n');
+            lines.forEach(line=>{
+                const lineClass=line.includes('[ERROR]')?'error':line.includes('[WARN]')?'warn':'';
+                html+=`<div class="log-line ${lineClass}">${line}</div>`;
+            });
+            html+=`</div>
+            <div class="fix-options">`;
+            BUGS_BY_LAYER[layerNum].forEach(b=>{
+                const isCorrect=b.name===bug.name;
+                html+=`<button class="fix-btn ${isCorrect?'correct':''}" onclick="attemptFix(${layerNum},'${b.name}',${isCorrect})">${b.name}</button>`;
+            });
+            html+=`</div>`;
+            content.innerHTML=html;
+        }
+
+        function attemptFix(layerNum,name,correct){
+            if(correct){
+                game.fixed.push(layerNum);
+                game.layerIdx++;
+                if(game.layerIdx===7){
+                    showSuccess();
+                }else{
+                    setTimeout(()=>showDebug(),600);
+                }
+            }else{
+                const btn=event.target;
+                btn.classList.add('tried');
+                btn.disabled=true;
+                const msg=document.createElement('div');
+                msg.className='fix-feedback';
+                msg.textContent='❌ Try another';
+                btn.parentElement.appendChild(msg);
+            }
+        }
+
+        function showSuccess(){
+            showScreen('s-success');
+            burstConfetti();
+        }
+
+        function burstConfetti(){
+            const colors=['#00d9ff','#00ff88','#b537f2','#ff1493','#0099ff'];
+            for(let i=0;i<40;i++){
+                const conf=document.createElement('div');
+                conf.className='confetti burst';
+                conf.style.left=Math.random()*100+'%';
+                conf.style.background=colors[Math.floor(Math.random()*colors.length)];
+                conf.style.animation=`confetti ${2+Math.random()}s ease-out forwards`;
+                conf.style.delay=Math.random()*0.3+'s';
+                document.body.appendChild(conf);
+                setTimeout(()=>conf.remove(),3000);
+            }
+        }
+
+        function newRound(){
+            initGame();
+        }
+    </script>
+</body>
+</html>
